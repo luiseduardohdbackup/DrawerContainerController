@@ -215,24 +215,26 @@ typedef enum {
     }
     
     [_containedControllers[identifier] setController:newViewController];
-    [self addChildViewController:newViewController];
-    newViewController.view.frame = self.view.bounds;
-    
-    switch (identifier) {
-        case ControllerIdentifierLeft:
-        case ControllerIdentifierRight: {
-            [self.view insertSubview:newViewController.view belowSubview:self.view.subviews.lastObject];
-            newViewController.view.hidden = YES;
-            break;
+    if (newViewController) {
+        [self addChildViewController:newViewController];
+        newViewController.view.frame = self.view.bounds;
+        
+        switch (identifier) {
+            case ControllerIdentifierLeft:
+            case ControllerIdentifierRight: {
+                [self.view insertSubview:newViewController.view belowSubview:self.view.subviews.lastObject];
+                newViewController.view.hidden = YES;
+                break;
+            }
+                
+            case ControllerIdentifierContent: {
+                [_contentContainerView addSubview:newViewController.view];
+                break;
+            }
         }
-            
-        case ControllerIdentifierContent: {
-            [_contentContainerView addSubview:newViewController.view];
-            break;
-        }
+        
+        [newViewController didMoveToParentViewController:self];
     }
-    
-    [newViewController didMoveToParentViewController:self];
 }
 
 - (void)didTapContent:(UIGestureRecognizer*)recognizer
@@ -243,6 +245,7 @@ typedef enum {
 - (void)didPanContent:(UIPanGestureRecognizer*)recognizer
 {
     static BOOL canInterpretPanAsSwipe = YES;
+    static BOOL shouldContinue = YES;
     
     switch (recognizer.state) {
         case UIGestureRecognizerStateChanged: {
@@ -252,42 +255,51 @@ typedef enum {
             }
             
             ControllerIdentifier identifier = (ControllerIdentifier)((NSInteger)(ABS(xOffset) / -xOffset) + 1);
-            _maximumXOffsetAllowedForCurrentDrawer = self.view.frame.size.width * [_containedControllers[identifier] maximumVisibilityFactor];
-            CGFloat finalXOffset = _maximumXOffsetAllowedForCurrentDrawer;
-            
-            if (canInterpretPanAsSwipe && ABS([recognizer velocityInView:recognizer.view].x) > _panToSWipeVelocityThreshold) {
-                if (ABS(xOffset) < ABS(_lastXToPosition)) {
-                    finalXOffset = 0.f;
+            if ([_containedControllers[identifier] controller]) {
+                shouldContinue = YES;
+                _maximumXOffsetAllowedForCurrentDrawer = self.view.frame.size.width * [_containedControllers[identifier] maximumVisibilityFactor];
+                CGFloat finalXOffset = _maximumXOffsetAllowedForCurrentDrawer;
+                
+                if (canInterpretPanAsSwipe && ABS([recognizer velocityInView:recognizer.view].x) > _panToSWipeVelocityThreshold) {
+                    if (ABS(xOffset) < ABS(_lastXToPosition)) {
+                        finalXOffset = 0.f;
+                    }
+                    [self translateContentContainerViewToPosition:finalXOffset animated:YES completion:nil];
+                    break;
                 }
-                [self translateContentContainerViewToPosition:finalXOffset animated:YES completion:nil];
-                break;
+                else {
+                    canInterpretPanAsSwipe = NO;
+                    if (ABS(xOffset) < ABS(_maximumXOffsetAllowedForCurrentDrawer)) {
+                        finalXOffset = xOffset;
+                    }
+                    
+                    [self translateContentContainerViewToPosition:finalXOffset animated:NO completion:nil];
+                    [recognizer setTranslation:CGPointZero inView:recognizer.view];
+                }
             }
             else {
-                canInterpretPanAsSwipe = NO;
-                if (ABS(xOffset) < ABS(_maximumXOffsetAllowedForCurrentDrawer)) {
-                    finalXOffset = xOffset;
-                }
-                
-                [self translateContentContainerViewToPosition:finalXOffset animated:NO completion:nil];
-                [recognizer setTranslation:CGPointZero inView:recognizer.view];
+                shouldContinue = NO;
             }
             
             break;
         }
             
         case UIGestureRecognizerStateEnded: {
-            CGFloat absoluteContentXPosition = ABS(_contentContainerView.frame.origin.x);
-            CGFloat absoluteMaxiumXOffsetAllowedForCurrentDrawer = ABS(_maximumXOffsetAllowedForCurrentDrawer);
-            if (absoluteContentXPosition < absoluteMaxiumXOffsetAllowedForCurrentDrawer / 2.f) {
-                [self translateContentContainerViewToPosition:0.f
-                                                     animated:(BOOL)absoluteContentXPosition
-                                                   completion:^{canInterpretPanAsSwipe = YES;}];
+            if (shouldContinue) {
+                CGFloat absoluteContentXPosition = ABS(_contentContainerView.frame.origin.x);
+                CGFloat absoluteMaxiumXOffsetAllowedForCurrentDrawer = ABS(_maximumXOffsetAllowedForCurrentDrawer);
+                if (absoluteContentXPosition < absoluteMaxiumXOffsetAllowedForCurrentDrawer / 2.f) {
+                    [self translateContentContainerViewToPosition:0.f
+                                                         animated:(BOOL)absoluteContentXPosition
+                                                       completion:^{canInterpretPanAsSwipe = YES;}];
+                }
+                else {
+                    [self translateContentContainerViewToPosition:_maximumXOffsetAllowedForCurrentDrawer
+                                                         animated:(absoluteContentXPosition != absoluteMaxiumXOffsetAllowedForCurrentDrawer)
+                                                       completion:^{canInterpretPanAsSwipe = YES;}];
+                }
             }
-            else {
-                [self translateContentContainerViewToPosition:_maximumXOffsetAllowedForCurrentDrawer
-                                                     animated:(absoluteContentXPosition != absoluteMaxiumXOffsetAllowedForCurrentDrawer)
-                                                   completion:^{canInterpretPanAsSwipe = YES;}];
-            }
+            
             break;
         }
             
@@ -303,7 +315,7 @@ typedef enum {
         ControllerIdentifier visibleDrawer = (ControllerIdentifier)((NSInteger)(ABS(toPosition) / -toPosition) + 1);
         ControllerIdentifier hiddenDrawer = visibleDrawer == ControllerIdentifierLeft ? ControllerIdentifierRight : ControllerIdentifierLeft;
         if ([[_containedControllers[visibleDrawer] controller] view].hidden) {
-            if (![[_containedControllers[hiddenDrawer] controller] view].hidden) {
+            if ([_containedControllers[hiddenDrawer] controller] && ![[_containedControllers[hiddenDrawer] controller] view].hidden) {
                 [[_containedControllers[hiddenDrawer] controller] view].hidden = YES;
                 [[NSNotificationCenter defaultCenter] postNotificationName:[_containedControllers[hiddenDrawer] hideNotification] object:self];
             }
