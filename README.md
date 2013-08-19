@@ -1,6 +1,10 @@
 DrawerContainerController
 =========================
-A Container View Controller along the lines of the View Controller Programming Guide for iOS. 
+
+A Container View Controller along the lines of the View Controller Programming Guide for iOS.
+
+![alt text][logo]
+[logo]: https://github.com/saldavonschwartz/DrawerContainerController/blob/master/DrawerContainerControllerLayout.png?raw=true "DrawerContainerController Layout"
 
 Features
 ========
