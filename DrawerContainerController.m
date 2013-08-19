@@ -111,11 +111,11 @@ typedef enum {
 
         [_containedControllers[ControllerIdentifierLeft] setShowNotification:kLeftDrawerWillShowNotification];
         [_containedControllers[ControllerIdentifierLeft] setHideNotification:kLeftDrawerDidHideNotification];
-        [_containedControllers[ControllerIdentifierLeft] setMaximumVisibilityFactor:.5f];
+        [_containedControllers[ControllerIdentifierLeft] setMaximumVisibilityFactor:.8f];
 
         [_containedControllers[ControllerIdentifierRight] setShowNotification:kRightDrawerWillShowNotification];
         [_containedControllers[ControllerIdentifierRight] setHideNotification:kRightDrawerDidHideNotification];
-        [_containedControllers[ControllerIdentifierRight] setMaximumVisibilityFactor:-.5f];
+        [_containedControllers[ControllerIdentifierRight] setMaximumVisibilityFactor:-.8f];
     }
 
     return self;
@@ -167,7 +167,7 @@ typedef enum {
 
 - (void)setLeftDrawerControllerMaximumVisibilityFactor:(CGFloat)leftDrawerControllerMaximumVisibilityFactor
 {
-    CGFloat clampedFactor = MIN(MAX(0.f, leftDrawerControllerMaximumVisibilityFactor), 1.f);
+    CGFloat clampedFactor = MIN(MAX(0.f, leftDrawerControllerMaximumVisibilityFactor), .8f);
     [_containedControllers[ControllerIdentifierLeft] setMaximumVisibilityFactor:clampedFactor];
 }
 
@@ -178,7 +178,7 @@ typedef enum {
 
 - (void)setRightDrawerControllerMaximumVisibilityFactor:(CGFloat)rightDrawerControllerMaximumVisibilityFactor
 {
-    CGFloat clampedFactor = MIN(MAX(0.f, rightDrawerControllerMaximumVisibilityFactor), 1.f);
+    CGFloat clampedFactor = MIN(MAX(0.f, rightDrawerControllerMaximumVisibilityFactor), .8f);
     [_containedControllers[ControllerIdentifierRight] setMaximumVisibilityFactor:-clampedFactor];
 }
 
