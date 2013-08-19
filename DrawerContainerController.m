@@ -58,11 +58,12 @@ typedef enum {
 
 //------------------------------------------------------------------------------------------------------------------------------------------
 
-@interface DrawerContainerController () <UIGestureRecognizerDelegate>
+@interface DrawerContainerController ()
 
 - (void)replaceContainedController:(UIViewController *)newViewController forIdentifier:(ControllerIdentifier)identifier;
-- (void)didTapContent:(UIGestureRecognizer*)recognizer;
-- (void)didPanContent:(UIPanGestureRecognizer*)recognizer;
+- (void)translateContentContainerViewToPosition:(CGFloat)toPosition animated:(BOOL)animated completion:(void(^)(void))completionBlock;
+- (void)didTapContent:(UIGestureRecognizer *)recognizer;
+- (void)didPanContent:(UIPanGestureRecognizer *)recognizer;
 
 @end
 
@@ -131,7 +132,6 @@ typedef enum {
     _contentContainerView.layer.shadowOpacity = 0.5f;
     
     _panContentRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(didPanContent:)];
-    _panContentRecognizer.delegate = self;
     [_contentContainerView addGestureRecognizer:_panContentRecognizer];
     
     _tapContentRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(didTapContent:)];
@@ -202,6 +202,36 @@ typedef enum {
     [self replaceContainedController:contentController forIdentifier:ControllerIdentifierContent];
 }
 
+- (void)toggleVisibilityForDrawerController:(UIViewController *)drawerController completion:(void (^)(void))completionBlock
+{
+    NSAssert(drawerController && (drawerController == self.leftDrawerController || drawerController == self.rightDrawerController),
+             @"%@ must only be invoked for the left or right drawer controllers.", NSStringFromSelector(_cmd));
+    void (^toggleDrawer)() = ^{
+        if (drawerController == self.leftDrawerController) {
+            [self translateContentContainerViewToPosition:self.view.frame.size.width * [_containedControllers[ControllerIdentifierLeft] maximumVisibilityFactor]
+                                                 animated:YES
+                                               completion:completionBlock];
+        }
+        else {
+            [self translateContentContainerViewToPosition:self.view.frame.size.width * [_containedControllers[ControllerIdentifierRight] maximumVisibilityFactor]
+                                                 animated:YES
+                                               completion:completionBlock];
+        }
+    };
+    
+    if (_visibleDrawerController) {
+        UIViewController *lastVisibleController = _visibleDrawerController;
+        [self translateContentContainerViewToPosition:0.f animated:YES completion:^{
+            if (lastVisibleController != drawerController) {
+                toggleDrawer();
+            }
+        }];
+    }
+    else {
+        toggleDrawer();
+    }
+}
+
 
 #pragma mark - Private Interface
 
@@ -237,12 +267,57 @@ typedef enum {
     }
 }
 
-- (void)didTapContent:(UIGestureRecognizer*)recognizer
+- (void)translateContentContainerViewToPosition:(CGFloat)toPosition animated:(BOOL)animated completion:(void(^)(void))completionBlock
+{
+    if (toPosition) {
+        ControllerIdentifier visibleDrawer = (ControllerIdentifier)((NSInteger)(ABS(toPosition) / -toPosition) + 1);
+        ControllerIdentifier hiddenDrawer = visibleDrawer == ControllerIdentifierLeft ? ControllerIdentifierRight : ControllerIdentifierLeft;
+        if ([[_containedControllers[visibleDrawer] controller] view].hidden) {
+            if ([_containedControllers[hiddenDrawer] controller] && ![[_containedControllers[hiddenDrawer] controller] view].hidden) {
+                [[_containedControllers[hiddenDrawer] controller] view].hidden = YES;
+                [[NSNotificationCenter defaultCenter] postNotificationName:[_containedControllers[hiddenDrawer] hideNotification] object:self];
+            }
+            [[NSNotificationCenter defaultCenter] postNotificationName:[_containedControllers[visibleDrawer] showNotification] object:self];
+            [[_containedControllers[visibleDrawer] controller] view].hidden = NO;
+        }
+        
+        _lastXToPosition = toPosition;
+        _visibleDrawerController = [_containedControllers[visibleDrawer] controller];
+        _visibleControllerIdentifier = visibleDrawer;
+    }
+    
+    CGRect toFrame = _contentContainerView.frame;
+    toFrame.origin.x = toPosition;
+    _panContentRecognizer.enabled = !animated;
+    [UIView animateWithDuration:animated ? .15f : 0.f animations:^{
+        _contentContainerView.frame = toFrame;
+    } completion:^(BOOL finished) {
+        if (!toPosition) {
+            [[_containedControllers[_visibleControllerIdentifier] controller] view].hidden = YES;
+            [[NSNotificationCenter defaultCenter] postNotificationName:[_containedControllers[_visibleControllerIdentifier] hideNotification] object:self];
+            
+            _lastXToPosition = toPosition;
+            [[_containedControllers[ControllerIdentifierContent] controller] view].userInteractionEnabled = YES;
+            _tapContentRecognizer.enabled = NO;
+        }
+        else if (toPosition == _maximumXOffsetAllowedForCurrentDrawer) {
+            [[_containedControllers[ControllerIdentifierContent] controller] view].userInteractionEnabled = NO;
+            _tapContentRecognizer.enabled = YES;
+        }
+        
+        _panContentRecognizer.enabled = YES;
+        if (completionBlock) {
+            completionBlock();
+        }
+    }];
+}
+
+- (void)didTapContent:(UIGestureRecognizer *)recognizer
 {
     [self translateContentContainerViewToPosition:0 animated:YES completion:nil];
 }
 
-- (void)didPanContent:(UIPanGestureRecognizer*)recognizer
+- (void)didPanContent:(UIPanGestureRecognizer *)recognizer
 {
     static BOOL canInterpretPanAsSwipe = YES;
     static BOOL shouldContinue = YES;
@@ -306,80 +381,6 @@ typedef enum {
         default: {
             return;
         }
-    }
-}
-
-- (void)translateContentContainerViewToPosition:(CGFloat)toPosition animated:(BOOL)animated completion:(void(^)(void))completionBlock
-{
-    if (toPosition) {
-        ControllerIdentifier visibleDrawer = (ControllerIdentifier)((NSInteger)(ABS(toPosition) / -toPosition) + 1);
-        ControllerIdentifier hiddenDrawer = visibleDrawer == ControllerIdentifierLeft ? ControllerIdentifierRight : ControllerIdentifierLeft;
-        if ([[_containedControllers[visibleDrawer] controller] view].hidden) {
-            if ([_containedControllers[hiddenDrawer] controller] && ![[_containedControllers[hiddenDrawer] controller] view].hidden) {
-                [[_containedControllers[hiddenDrawer] controller] view].hidden = YES;
-                [[NSNotificationCenter defaultCenter] postNotificationName:[_containedControllers[hiddenDrawer] hideNotification] object:self];
-            }
-            [[NSNotificationCenter defaultCenter] postNotificationName:[_containedControllers[visibleDrawer] showNotification] object:self];
-            [[_containedControllers[visibleDrawer] controller] view].hidden = NO;
-        }
-        
-        _lastXToPosition = toPosition;
-        _visibleDrawerController = [_containedControllers[visibleDrawer] controller];
-        _visibleControllerIdentifier = visibleDrawer;
-    }
-    
-    CGRect toFrame = _contentContainerView.frame;
-    toFrame.origin.x = toPosition;
-    _panContentRecognizer.enabled = !animated;
-    [UIView animateWithDuration:animated ? .15f : 0.f animations:^{
-        _contentContainerView.frame = toFrame;
-    } completion:^(BOOL finished) {
-        if (!toPosition) {
-            [[_containedControllers[_visibleControllerIdentifier] controller] view].hidden = YES;
-            [[NSNotificationCenter defaultCenter] postNotificationName:[_containedControllers[_visibleControllerIdentifier] hideNotification] object:self];
-            
-            _lastXToPosition = toPosition;
-            [[_containedControllers[ControllerIdentifierContent] controller] view].userInteractionEnabled = YES;
-            _tapContentRecognizer.enabled = NO;
-        }
-        else if (toPosition == _maximumXOffsetAllowedForCurrentDrawer) {
-            [[_containedControllers[ControllerIdentifierContent] controller] view].userInteractionEnabled = NO;
-            _tapContentRecognizer.enabled = YES;
-        }
-        
-        _panContentRecognizer.enabled = YES;
-        if (completionBlock) {
-            completionBlock();
-        }
-    }];
-}
-
-- (void)toggleVisibilityForDrawerController:(UIViewController*)drawerController completion:(void (^)(void))completionBlock
-{
-    NSAssert(drawerController && drawerController != self.contentController, @"%@ must only be invoked for the left or right drawer controllers.", NSStringFromSelector(_cmd));
-    void (^toggleDrawer)() = ^{
-        if (drawerController == self.leftDrawerController) {
-            [self translateContentContainerViewToPosition:self.view.frame.size.width * [_containedControllers[ControllerIdentifierLeft] maximumVisibilityFactor]
-                                                 animated:YES
-                                               completion:completionBlock];
-        }
-        else {
-            [self translateContentContainerViewToPosition:self.view.frame.size.width * [_containedControllers[ControllerIdentifierRight] maximumVisibilityFactor]
-                                                 animated:YES
-                                               completion:completionBlock];
-        }
-    };
-    
-    if (_visibleDrawerController) {
-        UIViewController *lastVisibleController = _visibleDrawerController;
-        [self translateContentContainerViewToPosition:0.f animated:YES completion:^{
-            if (lastVisibleController != drawerController) {
-                toggleDrawer();
-            }
-        }];
-    }
-    else {
-        toggleDrawer();
     }
 }
 
