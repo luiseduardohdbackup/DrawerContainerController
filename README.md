@@ -1,6 +1,7 @@
 DrawerContainerController
 =========================
 A Container View Controller along the lines of the View Controller Programming Guide for iOS.
+
 Features
 ========
 
@@ -18,4 +19,8 @@ Features
   - tapping
   - calling a toggle method
 
+Usage
+=====
 
+1 a
+2 b
