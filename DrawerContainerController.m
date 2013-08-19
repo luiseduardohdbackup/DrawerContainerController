@@ -356,7 +356,7 @@ typedef enum {
 
 - (void)toggleVisibilityForDrawerController:(UIViewController*)drawerController completion:(void (^)(void))completionBlock
 {
-    NSAssert(drawerController && drawerController != self.contentController, @"%@ was must only be invoked for the left or right drawer controllers.", NSStringFromSelector(_cmd));
+    NSAssert(drawerController && drawerController != self.contentController, @"%@ must only be invoked for the left or right drawer controllers.", NSStringFromSelector(_cmd));
     void (^toggleDrawer)() = ^{
         if (drawerController == self.leftDrawerController) {
             [self translateContentContainerViewToPosition:self.view.frame.size.width * [_containedControllers[ControllerIdentifierLeft] maximumVisibilityFactor]
