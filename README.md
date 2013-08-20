@@ -12,6 +12,7 @@ Features
 - Left and right drawers each with adjustable percentage of visibility.
 - Adjustable velocity threshold (in points/ sec.) to switch from panning to swiping.
 - Possibility to continuously pan from one drawer to the next (which might not be very useful, but hey, it's free).
+- Possibility to abort gestures for either drawer via delegate protocol.
 - Notifications to signal each time a drawer becomes visible / hidden.
 - Open drawers by 
   - panning
@@ -38,4 +39,4 @@ Usage
   - kRightDrawerDidHideNotification
 7. **Optional:** If you want to programatically toggle a drawer open / shut, you can do so by calling `-toggleVisibilityForDrawerController:completion:`. The method takes either of the drawer controllers and an optional completion block.
 8. **Optional:** If you need to know which controller is visible at any time, query `visibleDrawerController`. Alternatively, you can query each drawer controller's `view.hidden` property.
-9. **Optional:** If you need to decide whether a drawer can be toggled open / shut, implement the `DrawerContainerControllerDelegate` protocol.
+9. **Optional:** If you need to decide whether a drawer can be toggled open / shut, implement the `DrawerContainerControllerDelegate` protocol's single method.
