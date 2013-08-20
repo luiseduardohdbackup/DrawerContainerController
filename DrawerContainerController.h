@@ -34,12 +34,21 @@ extern NSString *const kRightDrawerWillShowNotification;
 extern NSString *const kRightDrawerDidHideNotification;
 
 
+typedef enum {
+    DrawerControllerTypeLeft,
+    DrawerControllerTypeRight
+} DrawerControllerType;
+
+@class DrawerContainerController;
+
+@protocol DrawerContainerControllerDelegate <NSObject>
+- (BOOL)DrawerContainerController:(DrawerContainerController*)drawerContainerController shouldPanOrSwipeForDrawerControllerType:(DrawerControllerType)drawerControllerType;
+@end
+
 @interface DrawerContainerController : UIViewController
 
-/*  Threshold in points/sec. at which a pan is interpreted as a swipe, 
-    causing the appropriate drawer to snap open or shut.
-    Set to 650 points/sec. by default.*/
-@property (nonatomic,assign)CGFloat panToSWipeVelocityThreshold;
+@property (nonatomic, weak)id<DrawerContainerControllerDelegate> delegate;
+@property (nonatomic, assign)CGFloat panToSWipeVelocityThreshold;
 @property (nonatomic, strong)UIViewController *contentController;
 @property (nonatomic, strong)UIViewController *leftDrawerController;
 @property (nonatomic, assign)CGFloat leftDrawerControllerMaximumVisibilityFactor;

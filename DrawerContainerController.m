@@ -40,8 +40,8 @@ NSString *const kRightDrawerDidHideNotification = @"kRightDrawerDidHideNotificat
 
 typedef enum {
     ControllerIdentifierLeft,
-    ControllerIdentifierContent,
     ControllerIdentifierRight,
+    ControllerIdentifierContent
 } ControllerIdentifier;
 
 
@@ -79,6 +79,7 @@ typedef enum {
     ControllerIdentifier _visibleControllerIdentifier;
     GLfloat _maximumXOffsetAllowedForCurrentDrawer;
     GLfloat _lastXToPosition;
+    BOOL _contentAnimationInProgress;
 }
 
 @dynamic contentController;
@@ -206,29 +207,31 @@ typedef enum {
 {
     NSAssert(drawerController && (drawerController == self.leftDrawerController || drawerController == self.rightDrawerController),
              @"%@ must only be invoked for the left or right drawer controllers.", NSStringFromSelector(_cmd));
-    void (^toggleDrawer)() = ^{
-        if (drawerController == self.leftDrawerController) {
-            [self translateContentContainerViewToPosition:self.view.frame.size.width * [_containedControllers[ControllerIdentifierLeft] maximumVisibilityFactor]
-                                                 animated:YES
-                                               completion:completionBlock];
+    if (!_contentAnimationInProgress) {
+        void (^toggleDrawer)() = ^{
+            if (drawerController == self.leftDrawerController) {
+                [self translateContentContainerViewToPosition:self.view.frame.size.width * [_containedControllers[ControllerIdentifierLeft] maximumVisibilityFactor]
+                                                     animated:YES
+                                                   completion:completionBlock];
+            }
+            else {
+                [self translateContentContainerViewToPosition:self.view.frame.size.width * [_containedControllers[ControllerIdentifierRight] maximumVisibilityFactor]
+                                                     animated:YES
+                                                   completion:completionBlock];
+            }
+        };
+        
+        if (_visibleDrawerController) {
+            UIViewController *lastVisibleController = _visibleDrawerController;
+            [self translateContentContainerViewToPosition:0.f animated:YES completion:^{
+                if (lastVisibleController != drawerController) {
+                    toggleDrawer();
+                }
+            }];
         }
         else {
-            [self translateContentContainerViewToPosition:self.view.frame.size.width * [_containedControllers[ControllerIdentifierRight] maximumVisibilityFactor]
-                                                 animated:YES
-                                               completion:completionBlock];
+            toggleDrawer();
         }
-    };
-    
-    if (_visibleDrawerController) {
-        UIViewController *lastVisibleController = _visibleDrawerController;
-        [self translateContentContainerViewToPosition:0.f animated:YES completion:^{
-            if (lastVisibleController != drawerController) {
-                toggleDrawer();
-            }
-        }];
-    }
-    else {
-        toggleDrawer();
     }
 }
 
@@ -270,7 +273,7 @@ typedef enum {
 - (void)translateContentContainerViewToPosition:(CGFloat)toPosition animated:(BOOL)animated completion:(void(^)(void))completionBlock
 {
     if (toPosition) {
-        ControllerIdentifier visibleDrawer = (ControllerIdentifier)((NSInteger)(ABS(toPosition) / -toPosition) + 1);
+        ControllerIdentifier visibleDrawer = (ControllerIdentifier)(((NSInteger)(ABS(toPosition) / -toPosition) + 1) / 2);
         ControllerIdentifier hiddenDrawer = visibleDrawer == ControllerIdentifierLeft ? ControllerIdentifierRight : ControllerIdentifierLeft;
         if ([[_containedControllers[visibleDrawer] controller] view].hidden) {
             if ([_containedControllers[hiddenDrawer] controller] && ![[_containedControllers[hiddenDrawer] controller] view].hidden) {
@@ -289,6 +292,7 @@ typedef enum {
     CGRect toFrame = _contentContainerView.frame;
     toFrame.origin.x = toPosition;
     _panContentRecognizer.enabled = !animated;
+    _contentAnimationInProgress = animated;
     [UIView animateWithDuration:animated ? .15f : 0.f animations:^{
         _contentContainerView.frame = toFrame;
     } completion:^(BOOL finished) {
@@ -306,6 +310,7 @@ typedef enum {
         }
         
         _panContentRecognizer.enabled = YES;
+        _contentAnimationInProgress = NO;
         if (completionBlock) {
             completionBlock();
         }
@@ -326,34 +331,43 @@ typedef enum {
         case UIGestureRecognizerStateChanged: {
             CGFloat xOffset = _contentContainerView.frame.origin.x + [recognizer translationInView:recognizer.view].x;
             if (!xOffset) {
-                return;
+                break;
             }
             
-            ControllerIdentifier identifier = (ControllerIdentifier)((NSInteger)(ABS(xOffset) / -xOffset) + 1);
-            if ([_containedControllers[identifier] controller]) {
-                shouldContinue = YES;
-                _maximumXOffsetAllowedForCurrentDrawer = self.view.frame.size.width * [_containedControllers[identifier] maximumVisibilityFactor];
-                CGFloat finalXOffset = _maximumXOffsetAllowedForCurrentDrawer;
-                
-                if (canInterpretPanAsSwipe && ABS([recognizer velocityInView:recognizer.view].x) > _panToSWipeVelocityThreshold) {
-                    if (ABS(xOffset) < ABS(_lastXToPosition)) {
-                        finalXOffset = 0.f;
+            ControllerIdentifier identifier = (ControllerIdentifier)(((NSInteger)(ABS(xOffset) / -xOffset) + 1) / 2);
+            if (shouldContinue) {
+                if (canInterpretPanAsSwipe) {
+                    shouldContinue = !self.delegate || [self.delegate DrawerContainerController:self shouldPanOrSwipeForDrawerControllerType:(DrawerControllerType)identifier];
+                    if (!shouldContinue) {
+                        break;
                     }
-                    [self translateContentContainerViewToPosition:finalXOffset animated:YES completion:nil];
-                    break;
+                }
+                
+                if ([_containedControllers[identifier] controller]) {
+                    shouldContinue = YES;
+                    _maximumXOffsetAllowedForCurrentDrawer = self.view.frame.size.width * [_containedControllers[identifier] maximumVisibilityFactor];
+                    CGFloat finalXOffset = _maximumXOffsetAllowedForCurrentDrawer;
+                    
+                    if (canInterpretPanAsSwipe && ABS([recognizer velocityInView:recognizer.view].x) > _panToSWipeVelocityThreshold) {
+                        if (ABS(xOffset) < ABS(_lastXToPosition)) {
+                            finalXOffset = 0.f;
+                        }
+                        [self translateContentContainerViewToPosition:finalXOffset animated:YES completion:nil];
+                        break;
+                    }
+                    else {
+                        canInterpretPanAsSwipe = NO;
+                        if (ABS(xOffset) < ABS(_maximumXOffsetAllowedForCurrentDrawer)) {
+                            finalXOffset = xOffset;
+                        }
+                        
+                        [self translateContentContainerViewToPosition:finalXOffset animated:NO completion:nil];
+                        [recognizer setTranslation:CGPointZero inView:recognizer.view];
+                    }
                 }
                 else {
-                    canInterpretPanAsSwipe = NO;
-                    if (ABS(xOffset) < ABS(_maximumXOffsetAllowedForCurrentDrawer)) {
-                        finalXOffset = xOffset;
-                    }
-                    
-                    [self translateContentContainerViewToPosition:finalXOffset animated:NO completion:nil];
-                    [recognizer setTranslation:CGPointZero inView:recognizer.view];
+                    shouldContinue = NO;
                 }
-            }
-            else {
-                shouldContinue = NO;
             }
             
             break;
@@ -366,13 +380,17 @@ typedef enum {
                 if (absoluteContentXPosition < absoluteMaxiumXOffsetAllowedForCurrentDrawer / 2.f) {
                     [self translateContentContainerViewToPosition:0.f
                                                          animated:(BOOL)absoluteContentXPosition
-                                                       completion:^{canInterpretPanAsSwipe = YES;}];
+                                                       completion:^{canInterpretPanAsSwipe = YES; shouldContinue = YES;}];
                 }
                 else {
                     [self translateContentContainerViewToPosition:_maximumXOffsetAllowedForCurrentDrawer
                                                          animated:(absoluteContentXPosition != absoluteMaxiumXOffsetAllowedForCurrentDrawer)
-                                                       completion:^{canInterpretPanAsSwipe = YES;}];
+                                                       completion:^{canInterpretPanAsSwipe = YES; shouldContinue = YES;}];
                 }
+            }
+            else {
+                canInterpretPanAsSwipe = YES;
+                shouldContinue = YES;
             }
             
             break;
