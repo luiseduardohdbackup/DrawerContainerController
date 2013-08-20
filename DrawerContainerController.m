@@ -80,6 +80,7 @@ typedef enum {
     GLfloat _maximumXOffsetAllowedForCurrentDrawer;
     GLfloat _lastXToPosition;
     BOOL _contentAnimationInProgress;
+    BOOL _delegateQueryInProgress;
 }
 
 @dynamic contentController;
@@ -205,6 +206,7 @@ typedef enum {
 
 - (void)toggleVisibilityForDrawerController:(UIViewController *)drawerController completion:(void (^)(void))completionBlock
 {
+    NSAssert(!_delegateQueryInProgress, @"%@ must not be invoked inside delegate method.", NSStringFromSelector(_cmd));
     NSAssert(drawerController && (drawerController == self.leftDrawerController || drawerController == self.rightDrawerController),
              @"%@ must only be invoked for the left or right drawer controllers.", NSStringFromSelector(_cmd));
     if (!_contentAnimationInProgress) {
@@ -300,6 +302,7 @@ typedef enum {
             [[_containedControllers[_visibleControllerIdentifier] controller] view].hidden = YES;
             [[NSNotificationCenter defaultCenter] postNotificationName:[_containedControllers[_visibleControllerIdentifier] hideNotification] object:self];
             
+            _visibleDrawerController = nil;
             _lastXToPosition = toPosition;
             [[_containedControllers[ControllerIdentifierContent] controller] view].userInteractionEnabled = YES;
             _tapContentRecognizer.enabled = NO;
@@ -319,7 +322,11 @@ typedef enum {
 
 - (void)didTapContent:(UIGestureRecognizer *)recognizer
 {
-    [self translateContentContainerViewToPosition:0 animated:YES completion:nil];
+    if (!self.delegate ||
+        [self.delegate DrawerContainerController:self
+        shouldBeginTransitionForDrawerController:[_containedControllers[_visibleControllerIdentifier] controller]]) {
+            [self translateContentContainerViewToPosition:0 animated:YES completion:nil];
+    }
 }
 
 - (void)didPanContent:(UIPanGestureRecognizer *)recognizer
@@ -335,15 +342,19 @@ typedef enum {
             }
             
             ControllerIdentifier identifier = (ControllerIdentifier)(((NSInteger)(ABS(xOffset) / -xOffset) + 1) / 2);
-            if (shouldContinue) {
-                if (canInterpretPanAsSwipe) {
-                    shouldContinue = !self.delegate || [self.delegate DrawerContainerController:self shouldPanOrSwipeForDrawerControllerType:(DrawerControllerType)identifier];
-                    if (!shouldContinue) {
-                        break;
+            if ([_containedControllers[identifier] controller]) {
+                if (shouldContinue) {
+                    if (canInterpretPanAsSwipe || _visibleControllerIdentifier != identifier) {
+                        _delegateQueryInProgress = YES;
+                        shouldContinue = (!self.delegate ||
+                                          [self.delegate DrawerContainerController:self
+                                          shouldBeginTransitionForDrawerController:[_containedControllers[identifier] controller]]);
+                        _delegateQueryInProgress = NO;
+                        if (!shouldContinue) {
+                            break;
+                        }
                     }
-                }
-                
-                if ([_containedControllers[identifier] controller]) {
+                    
                     shouldContinue = YES;
                     _maximumXOffsetAllowedForCurrentDrawer = self.view.frame.size.width * [_containedControllers[identifier] maximumVisibilityFactor];
                     CGFloat finalXOffset = _maximumXOffsetAllowedForCurrentDrawer;

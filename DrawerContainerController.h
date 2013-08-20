@@ -34,16 +34,12 @@ extern NSString *const kRightDrawerWillShowNotification;
 extern NSString *const kRightDrawerDidHideNotification;
 
 
-typedef enum {
-    DrawerControllerTypeLeft,
-    DrawerControllerTypeRight
-} DrawerControllerType;
-
 @class DrawerContainerController;
 
 @protocol DrawerContainerControllerDelegate <NSObject>
-- (BOOL)DrawerContainerController:(DrawerContainerController*)drawerContainerController shouldPanOrSwipeForDrawerControllerType:(DrawerControllerType)drawerControllerType;
+- (BOOL)DrawerContainerController:(DrawerContainerController*)drawerContainerController shouldBeginTransitionForDrawerController:(UIViewController*)drawerController;
 @end
+
 
 @interface DrawerContainerController : UIViewController
 
