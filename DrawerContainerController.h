@@ -44,12 +44,26 @@ extern NSString *const kRightDrawerDidHideNotification;
 @interface DrawerContainerController : UIViewController
 
 @property (nonatomic, weak)id<DrawerContainerControllerDelegate> delegate;
+
+/*  What percentage of the content view do both gesture-sensitive edges take up.
+    i.e.: 0.5 = each edge if 50% of the view, meaning the whole content view is gesture-sensitive.
+    Clamped to [0.2 ... 0.5]. Default is 0.35. */
+@property (nonatomic, assign)CGFloat gestureSensitiveAreaFactor;
+
+/*  Past what velocity (in points/sec.) is a pan gesture instead interpreted as a swipe.
+    If the gesture is recognized as a swipte, the appropriate drawer will toggle fully open/shut regardless
+    of the rest of the gesture. Default is 650 points/sec.  */
 @property (nonatomic, assign)CGFloat panToSWipeVelocityThreshold;
+
+/*  Visibility factors determine what percentage of each drawer is visible when in its open state.
+    i.e.: 0.8 = 80% of a drawer is visible, leaving 20% of the content visible too (necessary for panning, swiping, taping it shut.)
+    Clamped to [0 ... 0.8]. Default is 0.8. */
+@property (nonatomic, assign)CGFloat leftDrawerControllerMaximumVisibilityFactor;
+@property (nonatomic, assign)CGFloat rightDrawerControllerMaximumVisibilityFactor;
+
 @property (nonatomic, strong)UIViewController *contentController;
 @property (nonatomic, strong)UIViewController *leftDrawerController;
-@property (nonatomic, assign)CGFloat leftDrawerControllerMaximumVisibilityFactor;
 @property (nonatomic, strong)UIViewController *rightDrawerController;
-@property (nonatomic, assign)CGFloat rightDrawerControllerMaximumVisibilityFactor;
 @property (nonatomic, assign, readonly)UIViewController *visibleDrawerController;
 
 - (id)initWithContentController:(UIViewController*)contentController;

@@ -58,7 +58,7 @@ typedef enum {
 
 //------------------------------------------------------------------------------------------------------------------------------------------
 
-@interface DrawerContainerController ()
+@interface DrawerContainerController () <UIGestureRecognizerDelegate>
 
 - (void)replaceContainedController:(UIViewController *)newViewController forIdentifier:(ControllerIdentifier)identifier;
 - (void)translateContentContainerViewToPosition:(CGFloat)toPosition animated:(BOOL)animated completion:(void(^)(void))completionBlock;
@@ -105,7 +105,7 @@ typedef enum {
 {
     self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil];
     if (self) {
-        
+        _gestureSensitiveAreaFactor = .35f;
         _panToSWipeVelocityThreshold = 650.f;
         _visibleControllerIdentifier = ControllerIdentifierContent;
         _containedControllers = @[[[ControllerContainer alloc] init],
@@ -135,6 +135,7 @@ typedef enum {
     
     _panContentRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(didPanContent:)];
     [_contentContainerView addGestureRecognizer:_panContentRecognizer];
+    _panContentRecognizer.delegate = self;
     
     _tapContentRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(didTapContent:)];
     _tapContentRecognizer.enabled = NO;
@@ -151,6 +152,12 @@ typedef enum {
 
 
 #pragma mark - Public Interface
+
+- (void)setGestureSensitiveAreaFactor:(CGFloat)gestureSensitiveAreaFactor
+{
+    CGFloat clampedFactor = MIN(MAX(.2f, gestureSensitiveAreaFactor), .5f);
+    _gestureSensitiveAreaFactor = clampedFactor;
+}
 
 - (UIViewController *)leftDrawerController
 {
@@ -411,6 +418,11 @@ typedef enum {
             return;
         }
     }
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch
+{
+    return (1.f - ABS(([touch locationInView:gestureRecognizer.view].x/gestureRecognizer.view.center.x) - 1.f) <= _gestureSensitiveAreaFactor);
 }
 
 @end
