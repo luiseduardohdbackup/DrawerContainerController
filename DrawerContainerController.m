@@ -128,6 +128,8 @@ typedef enum {
 {
     [super viewDidLoad];
     _contentContainerView = [[UIView alloc] initWithFrame:self.view.bounds];
+    _contentContainerView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    
     UIBezierPath *path = [UIBezierPath bezierPathWithRect:_contentContainerView.bounds];
     _contentContainerView.layer.shadowPath = path.CGPath;
     _contentContainerView.layer.shadowRadius = 5.f;
